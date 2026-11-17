@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#071b16">
+<title>Pool Trajectory AI</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{color-scheme:dark;--bg:#071b16;--panel:#102a22;--line:#285343;--mint:#77efb0;--muted:#a8c3b5}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#071b16,#0d251e);color:#f4fff8;font:16px -apple-system,BlinkMacSystemFont,sans-serif;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom)}
+header{padding:18px 4px 12px}h1{font-size:25px;margin:0 0 5px}p{color:var(--muted);line-height:1.4;margin:5px 0}
+.card{background:#102a22;border:1px solid var(--line);border-radius:18px;padding:14px;margin:12px 0}
+button,.filebtn{border:0;border-radius:13px;background:var(--mint);color:#062016;font-weight:700;padding:13px 15px;font-size:15px;display:inline-block}
+button.secondary{background:#1b4033;color:#effff5;border:1px solid #376653}
+input[type=file]{display:none}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+#stage{width:100%;display:block;background:#06130f;border-radius:12px;touch-action:manipulation}
+#canvasWrap{position:relative;overflow:hidden;border-radius:12px;background:#06130f;min-height:190px;display:grid;place-items:center}
+#placeholder{padding:35px 18px;text-align:center;color:var(--muted)}
+select{background:#18392d;color:white;border:1px solid #376653;padding:11px;border-radius:10px}
+.stat{font-size:13px;color:var(--muted);margin-top:8px}
+ol{color:#d9eee2;padding-left:22px;line-height:1.55}
+footer{font-size:12px;color:#91aa9d;padding:8px 3px 22px}
+</style>
+</head>
+<body>
+<header><h1>🎱 Pool Trajectory AI</h1><p>Assistente di mira: importa un'immagine del tavolo, seleziona i punti e visualizza una traiettoria stimata.</p></header>
+<section class="card">
+  <div class="row">
+    <label class="filebtn" for="photo">Carica screenshot</label>
+    <input id="photo" type="file" accept="image/*">
+    <button class="secondary" id="clear">Azzera punti</button>
+  </div>
+  <p class="stat">Suggerimento: carica uno screenshot di 8 Ball Pool. Tocca nell'ordine: biglia bianca, biglia bersaglio, buca.</p>
+</section>
+<section class="card">
+  <div id="canvasWrap">
+    <div id="placeholder">Il tavolo apparirà qui dopo aver caricato uno screenshot.</div>
+    <canvas id="stage" hidden></canvas>
+  </div>
+  <p id="status" class="stat">In attesa di un'immagine.</p>
+  <div class="row" style="margin-top:12px">
+    <label for="mode">Modalità punto:</label>
+    <select id="mode"><option value="cue">1 · Biglia bianca</option><option value="target">2 · Biglia bersaglio</option><option value="pocket">3 · Buca</option></select>
+    <button id="next" class="secondary">Prossimo punto</button>
+  </div>
+</section>
+<section class="card">
+  <h3 style="margin:0 0 8px">Traiettoria stimata</h3>
+  <p id="result">Carica un'immagine e seleziona i tre punti.</p>
+  <button id="draw" disabled>Calcola traiettoria</button>
+</section>
+<section class="card">
+  <h3 style="margin:0 0 8px">Come si usa</h3>
+  <ol><li>Carica lo screenshot del tavolo.</li><li>Seleziona “Biglia bianca” e tocca il suo centro.</li><li>Seleziona “Biglia bersaglio” e tocca il suo centro.</li><li>Seleziona “Buca” e tocca la buca desiderata.</li><li>Premi “Calcola traiettoria”.</li></ol>
+</section>
+<footer>Prototipo dimostrativo. Le linee sono stime geometriche: non riconosce ancora automaticamente tutte le biglie, non misura con precisione effetto/forza e non si sovrappone al gioco. L'app non legge né modifica 8 Ball Pool.</footer>
+<script>
+const canvas=document.getElementById('stage'),ctx=canvas.getContext('2d');
+const photo=document.getElementById('photo'),placeholder=document.getElementById('placeholder');
+const mode=document.getElementById('mode'),statusEl=document.getElementById('status'),result=document.getElementById('result'),drawBtn=document.getElementById('draw');
+let img=null,points={cue:null,target:null,pocket:null},scale=1;
+const labels={cue:'Biglia bianca',target:'Biglia bersaglio',pocket:'Buca'};
+photo.addEventListener('change',e=>{
+ const f=e.target.files[0]; if(!f)return;
+ const url=URL.createObjectURL(f); img=new Image();
+ img.onload=()=>{const maxW=1200;scale=Math.min(1,maxW/img.width);canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.hidden=false;placeholder.hidden=true;points={cue:null,target:null,pocket:null};ctx.drawImage(img,0,0,canvas.width,canvas.height);render();statusEl.textContent='Immagine caricata. Seleziona il centro della biglia bianca.';mode.value='cue';drawBtn.disabled=true;};
+ img.src=url;
+});
+function render(){
+ if(!img)return;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
+ const colors={cue:'#ffffff',target:'#ffcf4a',pocket:'#ff6d8a'};
+ for(const k of Object.keys(points)){const p=points[k];if(!p)continue;ctx.beginPath();ctx.arc(p.x,p.y,k==='pocket'?8:9,0,Math.PI*2);ctx.strokeStyle=colors[k];ctx.lineWidth=3;ctx.stroke();ctx.fillStyle=colors[k];ctx.font='bold 13px sans-serif';ctx.fillText(labels[k],p.x+12,p.y-10);}
+}
+canvas.addEventListener('click',e=>{
+ if(!img)return;const r=canvas.getBoundingClientRect();const x=(e.clientX-r.left)*canvas.width/r.width,y=(e.clientY-r.top)*canvas.height/r.height;
+ points[mode.value]={x,y};render();
+ const order=['cue','target','pocket'];const idx=order.indexOf(mode.value);
+ statusEl.textContent=labels[mode.value]+' selezionata.';
+ if(order.every(k=>points[k])){drawBtn.disabled=false;statusEl.textContent='Tre punti selezionati. Premi “Calcola traiettoria”.';}
+ else mode.value=order.find(k=>!points[k]);
+});
+document.getElementById('next').onclick=()=>{const order=['cue','target','pocket'];mode.value=order[(order.indexOf(mode.value)+1)%3];};
+document.getElementById('clear').onclick=()=>{points={cue:null,target:null,pocket:null};drawBtn.disabled=true;result.textContent='Seleziona nuovamente i tre punti.';render();mode.value='cue';};
+document.getElementById('draw').onclick=()=>{
+ const {cue,target,pocket}=points;if(!cue||!target||!pocket)return;
+ // Ghost-ball point: contact point is one ball diameter behind the object ball along pocket line.
+ const dx=pocket.x-target.x,dy=pocket.y-target.y,len=Math.hypot(dx,dy)||1;
+ const radius=Math.max(5,canvas.width*0.012);
+ const ghost={x:target.x-dx/len*radius*2,y:target.y-dy/len*radius*2};
+ render();
+ ctx.setLineDash([8,6]);ctx.lineWidth=3;ctx.strokeStyle='#72f0ad';ctx.beginPath();ctx.moveTo(cue.x,cue.y);ctx.lineTo(ghost.x,ghost.y);ctx.stroke();
+ ctx.setLineDash([]);ctx.strokeStyle='#ffd15c';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(target.x,target.y);ctx.lineTo(pocket.x,pocket.y);ctx.stroke();
+ ctx.fillStyle='#72f0ad';ctx.beginPath();ctx.arc(ghost.x,ghost.y,5,0,Math.PI*2);ctx.fill();
+ const angle=Math.atan2(ghost.y-cue.y,ghost.x-cue.x)*180/Math.PI;
+ result.textContent='Linea bianca → punto di contatto (verde). Biglia bersaglio → buca (giallo). Angolo geometrico della mira: '+angle.toFixed(1)+'°. Stima semplificata: considera i centri delle biglie e non include attrito, rotazione o forza.';
+};
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body></html>

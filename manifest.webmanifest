@@ -1,0 +1,10 @@
+{
+  "name": "Pool Trajectory AI",
+  "short_name": "Pool AI",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#071b16",
+  "theme_color": "#071b16",
+  "description": "Assistente di mira e traiettorie per biliardo",
+  "icons": []
+}
